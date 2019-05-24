@@ -38,13 +38,6 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if(sockfd < 0)
-    {
-        printf("socket error: %s\n", strerror(errno));
-        return -1;
-    }
-
     struct sockaddr_in servaddr;
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
@@ -55,13 +48,24 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    if(connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
+    int sockfd[5];
+    for(int i = 0; i < 5; i++)
     {
-        printf("connect error: %s\n", strerror(errno));
-        return -1;
+        sockfd[i] = socket(AF_INET, SOCK_STREAM, 0);
+        if(sockfd[i] < 0)
+        {
+            printf("socket error: %s\n", strerror(errno));
+            return -1;
+        }
+
+        if(connect(sockfd[i], (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
+        {
+            printf("connect error: %s\n", strerror(errno));
+            return -1;
+        }
     }
 
-    str_cli(sockfd);
+    str_cli(sockfd[0]);
 
     return 0;
 }

@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 #include "tools.h"
 
 void str_echo(int sockfd)
@@ -35,6 +36,19 @@ void str_echo(int sockfd)
     }
 }
 
+void sig_chld(int signo)
+{
+    pid_t pid;
+    int stat;
+
+    while((pid = waitpid(-1, &stat, WNOHANG)) > 0)
+    {
+        printf("child %d terminated\n", pid);
+    }
+
+    return;
+}
+
 int main(int argc, char **argv)
 {
     int listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -61,6 +75,8 @@ int main(int argc, char **argv)
         printf("listen error: %s\n", strerror(errno));
         return -1;
     }
+
+    signal(SIGCHLD, sig_chld);
 
     while(1)
     {
