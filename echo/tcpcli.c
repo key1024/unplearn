@@ -18,9 +18,15 @@ void str_cli(int sockfd)
             return;
         }
 
-        if(read(sockfd, readline, sizeof(readline)) < 0)
+        int nr = read(sockfd, readline, sizeof(readline));
+        if(nr < 0)
         {
             printf("read error: %s\n", strerror(errno));
+            return;
+        }
+        else if(nr == 0)
+        {
+            printf("对方关闭连接，通话结束\n");
             return;
         }
 
@@ -48,24 +54,20 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    int sockfd[5];
-    for(int i = 0; i < 5; i++)
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if(sockfd < 0)
     {
-        sockfd[i] = socket(AF_INET, SOCK_STREAM, 0);
-        if(sockfd[i] < 0)
-        {
-            printf("socket error: %s\n", strerror(errno));
-            return -1;
-        }
-
-        if(connect(sockfd[i], (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
-        {
-            printf("connect error: %s\n", strerror(errno));
-            return -1;
-        }
+        printf("socket error: %s\n", strerror(errno));
+        return -1;
     }
 
-    str_cli(sockfd[0]);
+    if(connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
+    {
+        printf("connect error: %s\n", strerror(errno));
+        return -1;
+    }
+
+    str_cli(sockfd);
 
     return 0;
 }
