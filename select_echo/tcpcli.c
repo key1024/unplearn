@@ -12,12 +12,14 @@ void str_cli(int sockfd)
     char readline[1024] = {0};
 
     int maxfdp1 = 0;
+    int stdineof = 0;
     fd_set rset;
     FD_ZERO(&rset);
 
     while(1)
     {
-        FD_SET(fileno(stdin), &rset);
+        if(stdineof == 0)
+            FD_SET(fileno(stdin), &rset);
         FD_SET(sockfd, &rset);
         maxfdp1 = max(fileno(stdin), sockfd) + 1;
         if(select(maxfdp1, &rset, NULL, NULL, NULL) < 0)
@@ -40,15 +42,28 @@ void str_cli(int sockfd)
                 return;
             }
 
-            printf("%s", readline);
+            if(write(fileno(stdout), readline, nr) != nr)
+            {
+                printf("输出到屏幕错误\n");
+                return;
+            }
             memset(readline, 0, sizeof(readline));
         }
 
         if(FD_ISSET(fileno(stdin), &rset))
         {
-            if(fgets(sendline, sizeof(sendline), stdin) == NULL)
+            int nr = read(fileno(stdin), sendline, sizeof(sendline));
+            if(nr < 0)
             {
+                printf("read error: %s\n", strerror(errno));
                 return;
+            }
+            else if(nr == 0)
+            {
+                stdineof = 1;
+                shutdown(sockfd, SHUT_WR); // send FIN
+                FD_CLR(fileno(stdin), &rset);
+                continue;
             }
 
             if(writen(sockfd, sendline, strlen(sendline)) < 0)

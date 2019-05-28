@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <sys/select.h>
 #include "tools.h"
 
 void str_echo(int sockfd)
@@ -76,37 +77,96 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    signal(SIGCHLD, sig_chld);
+    int maxfd = listenfd;
+    int maxi = -1;
+    int clientfd[FD_SETSIZE];
+    for(int i = 0; i < FD_SETSIZE; i++)
+        clientfd[i] = -1;
+    
+    fd_set allset, rset;
+    FD_SET(listenfd, &allset);
 
     while(1)
     {
-        struct sockaddr_in cliaddr;
-        socklen_t clilen = sizeof(cliaddr);
-        int connfd = accept(listenfd, (struct sockaddr*)&cliaddr, &clilen);
-        if(connfd == -1)
+        rset = allset;
+        int nready = select(maxfd+1, &rset, NULL, NULL, NULL);
+
+        if(FD_ISSET(listenfd, &rset))
         {
-            printf("accept error: %s\n", strerror(errno));
-            break;
+            struct sockaddr_in cliaddr;
+            socklen_t clilen = sizeof(cliaddr);
+            int connfd = accept(listenfd, (struct sockaddr*)&cliaddr, &clilen);
+            if(connfd == -1)
+            {
+                printf("accept error: %s\n", strerror(errno));
+                break;
+            }
+
+            int i = 0;
+            for(i = 0; i < FD_SETSIZE; i++)
+            {
+                if(clientfd[i] == -1)
+                {
+                    clientfd[i] = connfd;
+                    if(maxi < i)
+                        maxi = i;
+                    break;
+                }
+            }
+
+            // 连接的客户端过多，关闭该连接
+            if(i == FD_SETSIZE)
+            {
+                printf("too many clients.\n");
+                close(connfd);
+            }
+            else
+            {
+                if(maxfd < connfd)
+                    maxfd = connfd;
+
+                FD_SET(connfd, &allset);
+
+                if(--nready <= 0)
+                    continue;
+            }
         }
 
-        pid_t childpid = fork();
-        if(childpid == -1) // 创建子进程出错
+        for(int i = 0; i <= maxi; i++)
         {
-            printf("fork error: %s\n", strerror(errno));
-            break;
+            if(clientfd[i] < 0)
+                continue;
+
+            if(FD_ISSET(clientfd[i], &rset))
+            {
+                char buff[1024] = {0};
+                ssize_t nr = read(clientfd[i], buff, sizeof(buff));
+                if(nr < 0) // 程序出错，退出
+                {
+                    printf("read error: %s\n", strerror(errno));
+                    exit(-1);
+                }
+                else if(nr == 0) // 对方关闭链接
+                {
+                    printf("client closed the connection.\n");
+                    FD_CLR(clientfd[i], &allset);
+                    close(clientfd[i]);
+                    clientfd[i] = -1;
+                }
+                else
+                {
+                    ssize_t nw = writen(clientfd[i], buff, nr);
+                    if(nw < 0)
+                    {
+                        printf("write error: %s\n", strerror(errno));
+                        exit(-1);
+                    }
+                }
+
+                if(--nready <= 0)
+                    break;
+            }
         }
-        else if(childpid == 0) // 子进程
-        {
-            close(listenfd);
-            // 回显客户端的输入
-            str_echo(connfd);
-
-            printf("子进程退出\n");
-
-            exit(0);
-        }
-
-        close(connfd);
     }
 
     close(listenfd);
