@@ -143,8 +143,17 @@ int main(int argc, char **argv)
                 ssize_t nr = read(clientfd[i], buff, sizeof(buff));
                 if(nr < 0) // 程序出错，退出
                 {
-                    printf("read error: %s\n", strerror(errno));
-                    exit(-1);
+                    if(errno == ECONNRESET) // 客户端发送reset
+                    {
+                        close(clientfd[i]);
+                        FD_CLR(clientfd[i], &allset);
+                        clientfd[i] = -1;
+                    }
+                    else
+                    {
+                        printf("read error: %s\n", strerror(errno));
+                        exit(-1);
+                    }
                 }
                 else if(nr == 0) // 对方关闭链接
                 {
