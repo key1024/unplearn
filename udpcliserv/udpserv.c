@@ -38,6 +38,8 @@ int main(int argc, char **argv)
             break;
         }
 
+        printf("recv msg from %s on %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
+
         n = sendto(sockfd, msg, strlen(msg), 0, (struct sockaddr*)&cliaddr, len);
         if(n < 0)
         {

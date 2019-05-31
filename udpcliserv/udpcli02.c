@@ -20,7 +20,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    struct sockaddr_in servaddr, cliaddr;
+    struct sockaddr_in servaddr;
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(9999);
@@ -32,30 +32,30 @@ int main(int argc, char **argv)
 
     socklen_t servlen = sizeof(servaddr);
 
+    if(connect(sockfd, (struct sockaddr*)&servaddr, servlen) < 0)
+    {
+        printf("connect error: %s\n", strerror(errno));
+        return -1;
+    }
+
     while(1)
     {
         char sendline[1024], recvline[1024];
         if(fgets(sendline, 1024, stdin) == NULL)
             break;
 
-        int n = sendto(sockfd, sendline, strlen(sendline), 0, (struct sockaddr*)&servaddr, sizeof(servaddr));
+        int n = write(sockfd, sendline, strlen(sendline));
         if(n < 0)
         {
-            printf("sendto error: %s\n", strerror(errno));
+            printf("write error: %s\n", strerror(errno));
             break;
         }
 
-        socklen_t len = sizeof(cliaddr);
-        n = recvfrom(sockfd, recvline, 1024, 0, (struct sockaddr*)&cliaddr, &len);
+        n = read(sockfd, recvline, 1024);
         if(n < 0)
         {
-            printf("recvfrom errror: %s\n", strerror(errno));
+            printf("read errror: %s\n", strerror(errno));
             break;
-        }
-
-        if(len != servlen || memcmp(&servaddr, &cliaddr, len))
-        {
-            printf("reply from %s on %d(ignored)\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
         }
 
         recvline[n] = 0;
